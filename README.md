@@ -12,3 +12,7 @@ TP2: Anova sur le budget de plusieurs familles :
 
 TP3: Etude de la perfomance des sportifs avec une approche descriptive et Bayes
 ![image](https://user-images.githubusercontent.com/77342727/197975857-d1a6d34c-6566-494c-b93a-7cf2fcadbc5c.png)
+
+TP4: Modélisation de la performance des sportifs
+![image](https://user-images.githubusercontent.com/77342727/198058147-73c5d744-0522-49c8-a220-0e62fa67ebe4.png)
+
