@@ -1,0 +1,82 @@
+---
+title: "Domaine_Sport_TP2"
+author: "sam"
+date: "04/03/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+#chargement des packages
+library(tidyverse)
+library(scales)
+library(ggplot2)
+library(corrplot)
+library(dplyr)
+library(kableExtra)
+library(magrittr)
+library(gridExtra)
+library(leaps)
+library(modelr)
+library(esquisse)
+df=read.csv2("basket2.csv")
+```
+
+# TP 2 –Etude des déterminants de la performance en BasketBall
+
+# 1.Analyse exploratoire 
+
+```{r, echo = FALSE, warning=FALSE}
+ggplot(df,aes(age,..density..))+geom_histogram(bins=10)
+ggplot(df,aes(poids,..density..))+geom_histogram(bins=10)
+ggplot(df,aes(minutes_played,..density..))+geom_histogram(bins=10)
+summary(df$age)
+summary(df$poids)
+summary(df$minutes_played)
+
+```
+
+# 2.Analyse de la performance en fonction de l’âge
+```{r}
+
+df$points_games = df$points/df$games
+age_max_games=aggregate(points_games~age,data=df,FUN= max)
+
+colnames(age_max_games)
+
+
+ggplot(age_max_games,aes(y=points_games,x=age))+geom_point(size=3)+geom_smooth(method="lm",formula = y~poly(x,2),se = FALSE)
+###################################
+
+df$points_field_goal = df$points/df$field_goal_percentage
+age_max_field_goal=aggregate(points_field_goal~age,data=df,FUN= max)
+
+colnames(age_max_field_goal)
+
+
+ggplot(age_max_field_goal,aes(y=points_field_goal,x=age))+geom_point(size=3)+geom_smooth(method="lm",formula = y~poly(x,2),se = FALSE)
+
+################
+df$assists_games = df$assists/df$games
+age_max_games=aggregate(assists_games~age,data=df,FUN= max)
+
+colnames(age_max_games)
+
+
+ggplot(age_max_games,aes(y=assists_games,x=age))+geom_point(size=3)+geom_smooth(method="lm",formula = y~poly(x,2),se = FALSE)
+
+```
+
+
+
+
+# 3.Influencedes variables biométriques
+
+# 4.Différence selon les postes
+
+# 5.Analyse factorielle
+
+
