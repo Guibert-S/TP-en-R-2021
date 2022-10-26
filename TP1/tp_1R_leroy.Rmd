@@ -1,0 +1,462 @@
+---
+title: "TP LEROY"
+author: "Tommy Tankhapanya Chloé Landais Guibert Samuel"
+date: "26/01/2021"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+   
+    theme: yeti 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+#chargement des packages
+library(tidyverse)
+library(scales)
+library(ggplot2)
+library(corrplot)
+library(dplyr)
+library(kableExtra)
+library(magrittr)
+library(gridExtra)
+library(leaps)
+library(modelr)
+wakecounty=read.csv2("C:/Users/samue/OneDrive/Bureau/Sam/Ecole/2A/methode_stat/TP1/wakecounty.csv")
+```
+# Régression linéaire multiple, points influents et atypiques
+
+#### Nous allons réaliser une étude sur une base de données qui reprend des informations sur des habitations de Wake County en Caroline du Nord USA. Le compté de Wake  est l'endroit où se trouve Raleigh, la capitale de l'état de Caroline du Nord. Sur le plan démographique, la ville connaît une croissance exponentiel. En effet, la "ville des chênes" a connu une hausse de 31.18% de sa population depuis 2000. Cela signifie que de nombreuses maisons sont sortis de terre assez récemment.
+
+#### Notre objectif dans cette étude est de déterminer les différents facteurs qui influent sur la valeur de l'habitation dans cette région. Cette étude pourrait être utile pour un agent immobilier de la région qui cherche à estimer la valeur d'un bien immobilier. 
+
+#### Notre population s'élève à 100 maisons et nous disposons de 11 variables :
+
+- ID: numéro de l’habitation.
+- Total: la valeur totale de la propriété en dollars.
+- YearBuilt: l’année de construction de l’habitation.
+- SqFt: la surface de l’habitation en feet au carré.
+- Story: le nombre d’étages de l’habitation.
+- Acres: le nombre de demi-hectare.
+- NoBaths: le nombre de salles de bain dans l’habitation.
+- Fireplaces: le nombre de cheminées dans l’habitation.
+- Land: la valeur du terrain en dollars.
+- Building: la valeur du bâtiment de l’habitation en dollars.
+- Zip: le code zip de la propriété.
+
+#### Notre méthodologie est la suivante : nous avons décidé de retirer les variables "ID","ZIP" et "Land" car les deux premières n'apportent pas d'informations exploitables. Quant à la dernière, Land est une variable créée à partir d'une autre variable, ainsi elle n'apporte pas d'informations supplémentaires.
+#### Concernant les valeurs manquantes, une seule s'était glissé dans notre jeu de donnée. Nous avons décidé de ne pas la supprimer  mais de la remplacer par la valeur de la médiane. Le remplacement par la médiane permet de ne pas biaisé notre jeu de données. Pour certains graphiques, nous avons décidé de regrouper certaines données en classe afin d'avoir une lecture plus facile.
+
+```{r,echo=FALSE,warning=FALSE}
+
+# on remplace la valeur manquante par la mÃ©diane car la variable reprÃ©sente le nombre de salle de bain est discrÃ¨te. 
+#Prendre la mÃ©diane est une meilleur option que de supprimer la ligne car le jeu de donnÃ©es comporte seulement 100 observations.
+
+wakecounty[1,6] = median(wakecounty$NoBaths,na.rm = T)
+
+#  enlever les colonnes
+wakecounty = wakecounty[,-1,-11]
+wakecounty$ID = NULL
+wakecounty$Zip= NULL
+wakecounty$Land= NULL
+
+# Regrouper la valeur Total
+wakecounty = wakecounty %>% mutate(Prix = Total)
+
+# repartition en classe Total
+wakecounty$Prix = case_when(
+  wakecounty$Prix < 100000 ~ " Moins de 100 000",
+  wakecounty$Prix< 150000 ~ "100 000-150 000 ",
+  wakecounty$Prix< 250000 ~ "150 000-250 000 ",
+  wakecounty$Prix< 300000 ~ "250 000-300 000",
+  wakecounty$Prix< 400000 ~ "300 000-400 000",
+  TRUE ~ "400 000 et plus" )
+
+wakecounty = wakecounty %>% mutate("Demi_hectare" = Acres)
+# repartition en classe Acres (nombre de demi hectare)
+wakecounty$Demi_hectare = case_when(
+  wakecounty$Demi_hectare < 0.20 ~ " moins de 0.2 ",
+  wakecounty$Demi_hectare< 0.40 ~ "entre 0.2 et 0.4 ",
+  wakecounty$Demi_hectare< 0.60 ~ "entre 0.4 et 0.6 ",
+  wakecounty$Demi_hectare< 0.80 ~ "entre 0.6 et 0.8",
+  TRUE ~ "0.8 et plus" )
+
+
+
+
+
+
+# supprimer les valeurs extremes pour plus de visibilité
+wakecounty2 =  filter(wakecounty,Total<550000)
+
+
+```
+
+# Prix des maisons dans notre jeu de données
+
+```{r,echo=FALSE,warning=FALSE}
+ggplot(wakecounty,aes(x=Prix))+geom_bar(fill="darkgrey",color='black')+coord_flip()+labs(x="Prix des maisons",title="Prix des maisons dans notre jeu de données",y="Effectifs en %")
+#J'ai retiré les 2 plus grande valeurs pour pouvoir observer la repartition de plus près
+```
+
+#### D'après notre graphique, la majorité soit 51% des maisons ont une valeur comprises entre 100 000 et 250 000 $.
+
+
+```{r,echo=FALSE,warning=FALSE}
+summary(wakecounty$Total)
+
+```
+
+
+
+```{r,echo=FALSE,warning=FALSE}
+prop.table(table(wakecounty$Prix))
+```
+
+#### Au sein de notre population de maisons, le prix des maisons est assez hétérogène. En effet, la maison la moins onéreuse coûte seulement 32 184$ alors que la plus coûteuse est estimé à près de 5 millions de dollars. 
+#### Le prix moyen des maisons est de 258 574 $ mais cette moyenne ne rélfète pas la réalité de l'échantillon car les maisons très cheres influent grandement sur la moyenne. Ainsi, pour plus de visibilité sur les graphiques et afin de supprimer les biais. Nous avons décidé de supprimer temporairement deux individus : les deux maisons les plus onéreuses.
+
+```{r,echo=FALSE,warning=FALSE}
+summary(wakecounty2$Total)
+
+```
+#### Avec notre échantillon sans ces deux individus la moyenne est de 202 444$. 
+
+## Pourquoi une maison coûte t-elle plus ou moins chère que les autres ? 
+```{r,echo=FALSE,warning=FALSE}
+f=wakecounty %>% slice(5)
+
+ff=wakecounty %>% slice(86)
+fff =  wakecounty %>% slice(48)
+r=rbind(f,ff)
+r = rbind(r,fff)
+df = data.frame(r)
+df = df[,-9]
+df = df[,-9]
+df
+```
+
+#### Le tableau représente les caractéristiques des deux maisons les plus dispendieuses et celles de la maison la moins onéreuse. Nous constatons que la maison la plus coûteuse est la plus récente. En effet, seul cette maison a était construite après les années 2000. De plus, elle n'a pas la plus grande surface de terrain mais la plus grande superficie de terrains comparé aux autres(38.38 demi-hectares). Par comparaison la seconde maison avec la plus grande superficie compte seulement 1.53 demi-hectare).
+#### Etonnement, la deuxième maison est celle qui a la maison avec la plus grande superficie en pieds carrés(4650), le plus grand nombre de salles de bains(3). Tandis que la dernière maison est dernière dans tous les domaines et est la plus ancienne ce qui explique son faible prix. 
+#### Il est important de noter que les maisons les plus chères n'ont pas de cheminées ou n'en possèdent qu'une seule.
+
+
+## L'année de construction est-elle un facteur déterminant du prix des maisons en Caroline du Nord ? 
+
+```{r,echo=FALSE,warning=FALSE}
+ggplot(wakecounty2,aes(x=Total,y= YearBuilt))+geom_point(aes(color=wakecounty2$Prix),size=2)+labs(color = "Prix des maisons",x="Prix des maisons",y="Année de construction",title = "Prix des maisons en fonction des années de construction")+geom_smooth()
+
+summary(wakecounty2$YearBuilt)
+```
+
+####  50 % des maisons ont été construiste après 1981. D'après le graphique, il ne semble pas y avoir de lien entre l'année de construction et le prix des habitations.
+
+#### Cependant,le contexte géographique est primodriale, en effet  Raleigh et ses allentours ont connu une croissance démographique exponentielle depuis 1959 , cette apport de main d'oeuvres à dû nécessiter la constructions de nombreux logements. C'est pourquoi nous avons décider d'étudier la population en deux groupes. Le premier contient les habitations construites avant 1982 et le second les autres.
+
+
+```{r,echo=FALSE,warning=FALSE}
+wake_avant_1982 = wakecounty2 %>% filter(wakecounty2$YearBuilt < 1982)
+wake_apres_1982 = wakecounty2 %>% filter(wakecounty2$YearBuilt >= 1982)
+```
+
+
+```{r,echo=FALSE,warning=FALSE}
+cor(wake_avant_1982$Total,wake_avant_1982$YearBuilt)
+cor(wake_apres_1982$Total,wake_apres_1982$YearBuilt)
+
+```
+
+#### Les habitations d'avant 1982 ont une corrélation négative de -0.17 et celles d'après 1982 est de 0.26. Ainsi, on observe que les maisons d'après 1982 sont davantage correlés que les maisons d'avant 1982. Cette petite corrélation positive indique que plus l'année de construction augmente plus le prix augmente pour les maisosn d'après 1982. Il est a noté toutefois que cette corrélation n'est pas très elevée.
+
+## La surface de l'habitation en pieds carrés a-t-elle une influence sur la valeur de l'habitation ?
+
+```{r,echo=FALSE,warning=FALSE}
+
+
+a=ggplot(wakecounty2,aes(x=SqFt,y= Total))+geom_point(color="darkblue")+geom_smooth()+labs(color = "Prix des maisons",y="Prix des maisons",x="Pieds carré",title = "Prix des maisons en fonction de la surface d'habitation")
+b=ggplot(wakecounty2,aes(x=Prix,y= SqFt))+geom_boxplot(fill="white",color="#d1bd83")+coord_flip()+labs(color = "Prix des maisons",x="Prix des maisons",y="Pieds carré",title = "Prix des maisons en fonction de la surface d'habitation")
+grid.arrange(a,b,ncol=2,nrow=1)
+cor(wakecounty2$Total,wakecounty2$SqFt)
+
+```
+
+#### Pour l'ensemble des habitations on observe  une forte corrélation de 0.80 entre le prix de l'habitation et sa surface en pieds carrés. On peut donc en déduire que la variable sqFt influe grandement sur le prix total (pvaleur<2.2*10e-16).
+#### Cependant, pour les maisons d'après 1982, cette corrélation est encore plus forte (0.93) alors que pour les maisons d'avant 1982 elle est seulement de 0.59.
+
+
+```{r,echo=FALSE,warning=FALSE}
+aa=round(cor(wakecounty2$Total,wakecounty2$SqFt),3)
+
+bb=round(cor(wake_avant_1982$Total,wake_avant_1982$SqFt),3)
+cc= round(cor(wake_apres_1982$Total,wake_apres_1982$SqFt),3)
+df = data.frame(aa,bb,cc)
+colnames(df)= c("Corrélation générale","Avant 1982","Après 1982")
+df
+```
+
+
+## Le nombre de cheminées est-il un facteur déterminant sur la valeur de l'habitation ?
+```{r,echo=FALSE,warning=FALSE}
+ggplot(wakecounty2,aes(y=Total,x=as.factor(wakecounty2$Fireplaces)))+geom_boxplot(fill="orange",color="black")+theme_classic()+labs(title = "Prix des maisons en fonction du nombre de cheminée",y="Prix de l'habitation",x="Nombre de cheminée")
+
+aa=round(cor(wakecounty2$Total,wakecounty2$Fireplaces),3)
+
+bb=round(cor(wake_avant_1982$Total,wake_avant_1982$Fireplaces),3)
+cc= round(cor(wake_apres_1982$Total,wake_apres_1982$Fireplaces),3)
+df = data.frame(aa,bb,cc)
+colnames(df)= c("Corrélation générale","Avant 1982","Après 1982")
+df
+```
+
+#### D'après les résultats obtenus, nous constatons une corrélation modérée entre le prix total et le nombre de cheminées par habitation. On repère également que les corrélations d'avant et après 1982 sont proches de la tendance générale. Ce qui nous laisse entendre que le nombre de cheminées impacte légèrement le prix des habitations(p valeur <2.2*10e-16). 
+
+
+## La valeur du bâtiment de l'habitation a t-il un impact sur le prix de l'habitation ?
+```{r,echo=FALSE,warning=FALSE}
+
+ggplot(wakecounty2,aes(x=Total,y= Building))+geom_point(aes(color=wakecounty2$Prix),size=2)+labs(color = "Prix des maisons",x="Prix des maisons",y="Valeur du bâtiment de l'habitation en dollars",title = "Prix des maisons en fonction de la valeur du bâtiment")+geom_smooth(se = FALSE,color="red")
+aa=round(cor(wakecounty2$Total,wakecounty2$Building),3)
+
+bb=round(cor(wake_avant_1982$Total,wake_avant_1982$Building),3)
+cc= round(cor(wake_apres_1982$Total,wake_apres_1982$Building),3)
+df = data.frame(aa,bb,cc)
+colnames(df)= c("Corrélation générale","Avant 1982","Après 1982")
+df
+
+```
+
+#### D'après le graphique, on observe une corrélation quasiment parfaite(0.90) entre la valeur du batîment de l'habitation et son prix. On note très peu de différence entre les maisons d'avant et d'après 1982. Donc plus la valeur du batiment de l'habitation est élevée plus le prix de l'habitation le sera et réciproquement(p_valeur< 2.2*10e-16).
+
+## Comment la valeur de l'habitation évolue par rapport a la surface totale (en demi hectare)?
+```{r,echo=FALSE,warning=FALSE}
+ggplot(wakecounty2,aes(x=Prix,y= Acres))+geom_boxplot()+ coord_flip()+labs(y="Superfice en demi-hactare")
+aa=round(cor(wakecounty2$Total,wakecounty2$Acres),3)
+
+bb=round(cor(wake_avant_1982$Total,wake_avant_1982$Acres),3)
+cc= round(cor(wake_apres_1982$Total,wake_apres_1982$Acres),3)
+df = data.frame(aa,bb,cc)
+colnames(df)= c("Corrélation générale","Avant 1982","Après 1982")
+df
+```
+
+#### D'après nos résultats, on constate une faible corrélation entre la valeur de l'habitation et sa surface totale. En effet la corrélation générale est égale à 0.238, tandis que la valeur de la corrélation après 1982 est plus grande que celle d'avant 1982 (0.32 contre 0.126). Ce qui nous laisse conclure qu'il y a une évolution de la surface totale au fil des années.
+
+## Comment la valeur de l'habitation évolue par rapport au nombre d'étage de la propriétée?
+
+```{r,echo=FALSE,warning=FALSE}
+
+ggplot(wakecounty2,aes(x=Total,y=as.factor(Story)))+geom_boxplot(fill="darkorange",color="black") + coord_flip()+labs(y="Nombre d'étages de l'habitation",x="Prix des maisons",title ="Prix des maisons et Nombre d'étages")
+
+round(prop.table(table(wakecounty2$Prix,wakecounty2$Story),margin = 2),2)*100
+```
+
+#### Nous avons réalisé ci-dessous les boites à moustache du prix des maisons en fonction du nombre d'étages par habitation. Les valeurs des habitations à un étage semble légèrement inférieur aux autres.En effet, plus le prix de l'habitation augmente plus le nombre d'habitation à un étage diminue.Cependant, au delà de un les prix reste dans les même tranches. Avoir plus ou moins d'étage ne semble pas avoir une grande influence sur la valeur des logements hormis pour les habitations d'un étage.
+
+## Le nombre de salle de bain par habitation influe t-il à la hausse sur le prix de l'habitation ?
+
+```{r,echo=FALSE,warning=FALSE}
+ggplot(wakecounty2,aes(y=Total,x=as.factor(wakecounty2$NoBaths)))+geom_boxplot(fill="gold",color="black")+theme_classic()+labs(title = "Prix des maisons en fonction du nombre de salle de bain",y="Prix de l'habitation",x="Nombre de salle de bain")
+
+round(prop.table(table(wakecounty2$Prix,wakecounty2$NoBaths),margin = 1),2)*100
+```
+
+#### Il semble avoir un lien entre le nombre de salle de bain et le prix de l'habitation. En effet 50% des maisons qui coutent moins de 100000 dollars possèdent une seule salle de bain. A l'opposé seulement 7% des maisons qui possèdent une valeur entre 300000 et 400000 dollards n'ont qu'une seule salle de bain. Le nombre de salle de bains influe donc sur le prix des habitations.
+
+
+
+## Création d'un modèle statistique
+
+### modèle linéaire complet
+```{r,echo=FALSE,warning=FALSE}
+wakecounty2 = wakecounty2[,-c(9,10)]
+mod_complet <- lm(Total ~ ., wakecounty2)
+summary(mod_complet)
+
+
+```
+
+
+### La p-valeur du test de Fisher est très significative, donc on rejette l’hypothèse H0 modele null contre H1 modèle complet. On observe un R² ajusté de 0.8678 ce qui est plutôt élevé, cela signifie que nos variables expliques 86.78 % de la variance du prix des habitations. De nombreuse variables ont des coefficients qui ne sont pas significativement différent de 0 on peut essayer defaire de la selection de variable.
+
+
+
+
+
+
+### On realise un modèle avec plusieurs critères (BIC,Cp,R²). 
+####On obtient de les graphique suivants : 
+
+```{r,echo=FALSE,warning=FALSE}
+
+mod = lm(Total~., wakecounty2)
+
+
+models <- regsubsets(Total~., wakecounty2, nbest = 1, nvmax = 8)
+
+plot(models , scale ="adjr2")
+
+mod_Adj_R2 <- lm(Total ~  YearBuilt + SqFt + Acres + NoBaths + Building, wakecounty2)
+mod_BIC <- lm(Total ~  YearBuilt + Building, wakecounty2)
+plot(models , scale ="Cp")
+coef(models,5)
+
+
+plot(models , scale ="bic")
+coef(models,2)
+
+
+```
+
+#### Le critère du R² ajusté retient 5 coefficents, il n'incorpore pas  le nombre de cheminée(Fireplaces) et  le nombre d'étage(Story). 
+#### Le critère du  BIC lui retient seulement 2 variables la valeur du bâtiment de l'habitation en dollars(Building) et l'année de construction de l'habitation(YearBuilt). Il nous faut maintenant comparer les deux modèles.
+
+```{r,echo=FALSE,warning=FALSE,eval=FALSE}
+res.sum <- summary(models)
+data.frame(
+  Adj.R2 = which.max(res.sum$adjr2),
+  CP = which.min(res.sum$cp),
+  BIC = which.min(res.sum$bic)
+)
+
+```
+
+```{r,echo=FALSE,warning=FALSE}
+
+anova(mod_BIC,mod_Adj_R2)
+summary(mod_Adj_R2)$r.squared
+
+```
+
+#### On peut voir que le meilleur modèle n'incluent pas les variables Story et Fireplaces.  D'après l'anova le modèle du R² est légérement meilleur, cependant si l'agent immobilier n'a que très peu de données, le modèle du BIC sera une bonne alternative.
+#### Le modèle du R² ajusté est le suivant:
+
+$$ Y_i = Ei + \beta + \sum{k=1}^{5} \alpha_k * x_ki $$
+où $Y_i$ est la valeur de l'habitation à estimer, les $x_k$ sont les variables du modèle, $\alpha_k$ les coefficients des variables et $E_i$ sont iid et suivent une loi $N(0,\sigma^2)$.
+
+
+#### On observe un R² ajusté de 0.8678 ce qui est plutôt élevé, cela signifie que nos variables expliques 87.58 % de la variance du prix des habitations
+
+
+```{r,echo=FALSE,warning=FALSE}
+
+test = predict.lm(mod_Adj_R2,newdata = wakecounty2) # fitted()
+Prix_estime = as.data.frame(test)
+Prix_reel = wakecounty2[,7] %>% as.data.frame()
+Estimation = cbind(Prix_estime,Prix_reel)
+colnames(Estimation) = c("Prix estimé","Prix réel")
+Estimation
+```
+
+
+#### La prédiction n'est pas parfaite. Certaines valeurs sont bien prédits d'autres sont très éloignées.
+
+```{r,echo=FALSE,warning=FALSE}
+
+plot(mod_Adj_R2)
+```
+
+#### Pour residual vs fitted on voit un peu l'effet de la moyenne. Pour le qqplot à part pour les extrèmes ce semble correcte,pour scale location certaines vaaleurs sont très éloignés comme le numéro 65. Pour residuals vs Leverage, on a aussi certains points abhérents.
+
+
+
+```{r,echo=FALSE,warning=FALSE}
+#Estimation = mutate(Estimation,"ei²"=)
+residu_m1 = resid(mod_Adj_R2)
+res<-resid(mod_Adj_R2)
+plot(res,main="Résidus")
+abline(h=0,col="red")
+
+```
+
+#### Les résidus semblent assez bien répartis.L'écart-type résiduel est une mesure de la qualité de l'ajustement qui peut être utilisée pour analyser dans quelle mesure un ensemble de points de données correspond au modèle réel. Ici, l'écart type résiduel est de 41 120. Cependant, la variable SqFt est négative ce qui est étrange, il serait intéressant de tester d'autre modèle.
+
+
+
+
+#### Nous allons essayé d'utiliser un ajustement polynomial de degré 2 pour une meilleur qualité d'ajustement.
+
+```{r,echo=FALSE,warning=FALSE}
+ 
+mod_poly2_B <- lm(Total ~   Building+I(Building^2)+YearBuilt+I(YearBuilt^2), wakecounty2) 
+mod_poly2_R <- lm(Total ~   Building+I(Building^2)+YearBuilt+I(YearBuilt^2)+Acres+I(Acres^2)+NoBaths+I(NoBaths^2)+SqFt+I(SqFt^2), wakecounty2)  
+
+summary(mod_poly2_B)
+summary(mod_poly2_R)  
+
+anova(mod_poly2_B,mod_poly2_R,mod_Adj_R2,mod_BIC)
+
+
+
+```
+
+#### Avec un ajustement polynomial de degré 2 , d'après l'anova le meilleur modèle le suivant : 
+```{r,echo=FALSE,warning=FALSE}
+coef(mod_poly2_B)
+```
+#### De plus, on a un un R² ajusté 89,25 ce qui signifie que notre modèle explique 89,25 %  de la variance.
+
+
+
+
+### Test du modèle en condition
+
+ 
+```{r,echo=FALSE,warning=FALSE}
+
+wake = wakecounty2 %>% slice(1:60)
+
+mod_poly2_B_test <- lm(Total ~   Building+I(Building^2)+YearBuilt+I(YearBuilt^2), wake) 
+
+
+summary(mod_poly2_B_test)
+
+test = wakecounty2 %>% slice(61:98)
+
+
+Prix_estime=predict(mod_poly2_B_test,test)
+Prix_re = test[,7]
+Estimation = cbind(Prix_estime,Prix_re)
+colnames(Estimation) = c("Prix estimé","Prix réel")
+Estimation
+```
+
+####  Erreur absolue moyenne et erreur quadratique moyenne 
+
+```{r,echo=FALSE,warning=FALSE}
+mae(mod_poly2_B_test,wakecounty2) #is the mean absolute error
+rmse(mod_poly2_B_test,wakecounty2) #is the root-mean-squared-erro
+
+
+```
+
+#### Pour tester notre modèle dans des conditions réelles, nous découpons notre échantillon en deux, un échantillon d'apprentissage et un échantillon pour tester le modèle.  L'erreur absolue moyenne est de 26 430 $ ce qui est raisonnable puisque qu'en moyenne cela représente que 10% du prix d'une maison. Un bon agent immobilier pourra faire la différence. Quant à l'erreur quadratique moyenne du modèle elle est de 39 106,82. De tout nos modèles, c'est celui qui à la plus petite valeur donc c'est le meilleur modèle.
+#### D'après les résultats notre modèle semble très bien.
+
+####Cependant, il aurait été intéressant d'essayer avec encore d'autre modèles pour obtenir un modèle optimale. 
+
+
+
+# Synthèse :
+
+##### La population du jeu de données est assez hétérogènes ce qui ne facilite pas la création du modèle.
+#### D'après notre étude, les variables qui influent le plus sur le prix d'habitation sont : la superficie du terrain(Acres), la superficie de l'habitation(SqFt), la valeur du bâtiment de l'habitation(Building), le nombre de salle de bain(NoBaths) et l'année de construction(YearBuilt).
+#### Cependant, certaines variables sont plus détermiantes que d'autres c'est le cas  que la valeur du bâtiment de l'habitation(Building) et l'année de construction(YearBuilt). Il aurait pu être intéressant de créer un modèle pour les maisons anciennes et pour les maisons plus récente, ou bien un modèle en fonction du quartier d'habitation ou du type d'habitation.
+
+
+#### Un modèle pour expliquer le prix d'une habitation reste très  limité car la valeur d'un bien fluctue. De plus, notre modèle et notre base de données ne prennent pas en compte de nombreux paramètres essentiels  tels que l'inflation, la parité des monnaies, l'étage précis, les aménagements prévus, le voisinage, le taux d'emploi, le type de bâtiment, le paysage, le bruit, la qualité du bâtiment, l'état du bâtiment ... 
+#### Par exemple, le fait de ne pas savoir si l'habitation est un appartement ou une maison est compliqué puisqu'on fait des biais en se disant "un étage égale un appartement" alors qu'il existe des duplexes et des mobylomes. De même, il semble que les habitations proches de Raleigh sont majoritairement des maisons. 
+
+
+
+
+
+
+
+
+
+ 
