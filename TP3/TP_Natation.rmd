@@ -1,0 +1,347 @@
+---
+title: "TP Leroy Natation"
+author: " Samuel Tommy Chloé"
+date: "Pour le 19/03/2021"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+   
+    theme: yeti 
+---
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+
+library(tidyverse)
+library(rstanarm) # bays
+library(bayestestR) # bays
+library(insight) # bays
+library(Hmisc) # corrplot
+library(esquisse)
+library(BEST)
+library(corrplot)
+library(logspline)
+#esquisser()
+
+#changement de wd
+setwd("C:/Users/samue/OneDrive/Bureau/Ecole/2A/methode_stat/TP3")
+natation = read.csv("db_natation.csv")
+```
+
+#####   Les données proviennent d'un article de recherche qui étudie les performances en fonction de la morphologie des athlètes en natation. Elles ont été receuillis parmi les 100 meilleurs nageurs internationaux masculins et féminins pour les saisons 2000-2014.
+
+
+##### Les variables disponibles sont : Nom : nom de l’athlète, Pays : pays représenté par l’athlète, Sexe : genre de l’athlète, Distance : distance de course (50, 100, 200, 400, 800, 1500) en mètres, Taille : taille de l’athlète en cm, Poids : poids de l’athlète en kg, IMC : Indice de Masse Corporelle de l’athlète, Temps : performance chronométrique sur la course (en sec), Vitesse : vitesse moyenne sur la course (en km/h).
+
+##### Tout d'abord, nous allons nous intéresser aux données en fonction des distances (50m et 800m) afin de répondre aux  problématiques suivantes : Comment sont distribuées les variables liées à la performance ? L'IMC est-il un bon indicateur ? Quelle est la morphologie idéale pour maximiser la performance selon le sexe ? Les variables poids et tailles sont-elles liées à la performance des nageurs ?
+#####  Nous avons choisi 2 épreuves avec des distances assez éloignées. Nous n'avons pas choisi le 1500m car l'effectif était trop faible. Nous nous sommes reportés sur le 50 et 800m.
+
+
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+#summary(natation) # pas de NA 
+#str(natation)
+natation_50 = filter(natation,natation$Distance==50)
+natation_800 = filter(natation,natation$Distance==800)
+natation_50_800=  filter(natation,natation$Distance==800 | natation$Distance == 50)
+natation_50_H = filter(natation,natation$Distance==50 & natation$Sexe =="Homme" )
+natation_800_H = filter(natation,natation$Distance==800 & natation$Sexe =="Homme" )
+natation_50_F = filter(natation,natation$Distance==50 & natation$Sexe =="Femme" )
+natation_800_F = filter(natation,natation$Distance==800 & natation$Sexe =="Femme" )
+
+natation_50_800_numeric = natation_50_800[,5:9]
+```
+
+
+# Distribtuion des variables 
+
+### Réparition de la taille 
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+ggplot(natation_50_800, aes(x=natation_50_800$Taille)) + 
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666") + labs(title="Distribution de la taille selon le sexe par discipline  ",y="Densité ",x="Taille")+
+ facet_wrap(vars(Sexe,Distance))
+
+a = round(quantile(natation_50_H$Taille,prob = c(.25,.5,.75)),2)
+b = round(quantile(natation_50_F$Taille,prob = c(.25,.5,.75)),2)
+c = round(quantile(natation_800_H$Taille,prob = c(.25,.5,.75)),2)
+d =  round(quantile(natation_800_F$Taille,prob = c(.25,.5,.75)),2)
+tab=cbind(a,b,c,d)
+colnames(tab)= c("50m Homme","50m Femme","800m Homme ","800m Femme")
+tab
+#summary(natation_50_H)
+#summary(natation_50_F)
+#summary(natation_800_H)
+#summary(natation_800_F)
+```
+
+##### Globalement,les femmes sont plus petites que les hommes. Peu importe l'épreuve et le sexe, la distribution ressemble à une cloche aplatie. Ce qui a pour conséquence l'obtention d'une médiane toujours très proche de la moyenne. En effet, la moyenne de la taille des hommes sur le 50 mètres et 800 mètres est de 190.3 cm  et 183.2 cm. Pour les femmes, on obtient respectivement 176.7cm et 172.5cm.
+
+
+### Réparition du poids  
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+ggplot(natation_50_800, aes(x=natation_50_800$Poids)) + 
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666") + labs(title="Distribution du poids selon le poids par discipline  ",y="Densité ",x="Poids")+
+ facet_wrap(vars(Sexe,Distance))
+
+a = round(quantile(natation_50_H$Poids,prob = c(.25,.5,.75)),2)
+b = round(quantile(natation_50_F$Poids,prob = c(.25,.5,.75)),2)
+c = round(quantile(natation_800_H$Poids,prob = c(.25,.5,.75)),2)
+d =  round(quantile(natation_800_F$Poids,prob = c(.25,.5,.75)),2)
+tab=cbind(a,b,c,d)
+colnames(tab)= c("50m Homme","50m Femme","800m Homme ","800m Femme")
+tab
+
+```
+
+##### De manière générale, les femmes sont plus légères que les hommes. Peu importe l'épreuve et le sexe, la distribution ressemble à une cloche aplatie. Cependant, sur le 50m masculin, on observe des valeurs en queue de distribution. Sur les épreuves courtes les poids sont plus lourds que sur les épreuves de plus longues durées et distances.
+##### La moyenne du poids des hommes sur le 50 mètres et 800 mètres est de 82.4 kg  et 74.05 kg. Pour les femmes, on obtient respectivement 64.7 kg et 62.7kg. 
+
+
+
+
+### Réparition de la Vitesse  
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+ggplot(natation_50_800, aes(x=natation_50_800$Vitesse)) + 
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666") + labs(title="Distribution de la Vitesse  selon la Vitesse par discipline  ",y="Densité ",x="Vitesse")+
+ facet_wrap(vars(Sexe,Distance))
+
+a = round(quantile(natation_50_H$Vitesse,prob = c(.25,.5,.75)),2)
+b = round(quantile(natation_50_F$Vitesse,prob = c(.25,.5,.75)),2)
+c = round(quantile(natation_800_H$Vitesse,prob = c(.25,.5,.75)),2)
+d =  round(quantile(natation_800_F$Vitesse,prob = c(.25,.5,.75)),2)
+tab=cbind(a,b,c,d)
+colnames(tab)= c("50m Homme","50m Femme","800m Homme ","800m Femme")
+tab
+
+```
+
+##### Les hommes sont plus rapides que les femmes sur toutes les épreuves. Cependant, sur le 800 mètre, la différence est moins marquée. D'après le test de Shapiro, la vitesse suit une loi normale.
+##### L'écart inter-quartiles des vitesses au 50m est de 0.17km/heure pour les deux sexes. Pour le 800 m, l'écart est de 0.1km/h et 0.18 km/h pour les femmes. Ces différences peuvent paraître insignifiantes mais au niveau professionnel, chaque milliseconde peut être décisive.
+
+
+
+# L'IMC un outil faiblement informatif
+
+
+##### Pour rappel, l'IMC est une grandeur qui permet d'estimer la corpulence d'une personne. Elle a été inventé  au milieu du XIX ème siècle par un mathématicien belge. Sa formule est : Poids/ Taille².
+##### Un indice de masse corporel "normal" se situe entre 18,5 et 25.
+
+### Réparition de l'IMC  
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+ggplot(natation_50_800, aes(x=natation_50_800$IMC)) + 
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666") + labs(title="Distribution de l'IMC  selon l'IMC par discipline  ",y="Densité ",x="IMC")+
+ facet_wrap(vars(Sexe,Distance))
+
+```
+
+##### La médiane et la moyenne sont très similaires. L'IMC moyen pour le 50 m masculin est de 22.7 et 22 pour le 800m. Pour les femmes, il est de 20.7 pour le 50m et 21.07 pour le 800m. Le résultats sont étranges car on n'a pas la même dynamique pour les hommes et les femmes.
+
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+ggplot(natation_50_800, aes(x=natation_50_800$IMC,y=natation_50_800$Vitesse),fill=natation_50_800$Sexe) +  labs(xlab="IMC",ylab="Vitesse",title = "IMC et régression")+geom_point()+ facet_wrap(vars(Sexe,Distance))+ geom_smooth(color="black") 
+ 
+```
+
+##### La pente de la courbe quelque soit l'épreuve et le sexe est très plate. 
+
+### IMC et sexe
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+BESTout = BESTmcmc(natation_50_H$IMC, natation_50_F$IMC)
+plot(BESTout)
+BESTout = BESTmcmc(natation_800_H$IMC, natation_800_F$IMC)
+plot(BESTout)
+```
+
+##### Sur le 50m, on a 95% de chance que la différence d'IMC entre un homme pris au hasard et une femme prise au hasard se trouve entre 1,4 et 2.64.  
+##### Sur le 800 , on a 95% de chance que la différence d'IMC entre un homme pris au hasard et une femme prise au hasard se trouve entre 0.326 et 1.84.
+##### Les hommes ont toujours un IMC supérieurs à celui des femmes pour le 50m et quasiment toujours pour le 800 mètre. 
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+
+BESTout = BESTmcmc(natation_50_H$IMC, natation_800_H$IMC)
+plot(BESTout)
+```
+
+
+##### On a 95% de chance que la différence d'IMC entre un homme pris au hasard au 50m et un homme pris au hasard au 800m se trouve entre -0.183 et 1.33. Cela signifie que dans 93.5% des cas l'IMC des hommes participants au 50m sera plus élevé que celui qui nagent au 800m.
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE,results=FALSE}
+# modele 50 m 
+model <- stan_glm(Vitesse ~ IMC, data = natation_50_H)
+p=insight::get_parameters(model)
+```
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+
+ggplot(p, aes(x = IMC)) +geom_density(fill = "blue",alpha=.2)+labs(title = "Homme 50m")
+hdi(p$IMC,credMass = 0.89)
+describe_posterior(model, test = c("p_direction", "rope", "bayesfactor"))
+```
+
+
+##### Chez les hommes du 50 mètres, pour 1 point d'IMC supplémentaire , un athlète a environ 89 % de chance de gagner entre -0.006km/heure et 0.036 km/heure. L'intervalle contient 0 et des chiffres négatifs ce qui signifie que l'IMC n'est pas une variable significative. De plus, on observe une moyenne à  0.015 km/heure. 
+
+
+
+##### L'IMC n'est pas très informatif, en effet, tous les sportifs ont un IMC compris entre 17.31 et 27.45, c'est à dire entre maigreur et surpoid. D'après la distribution, il n'y a pas de lien significatif donc l'IMC n'est pas très utile dans notre cas. Cependant, on peut imaginer qu'au sein d'autre discipline, il pourrait peut être avoir une utilitée.
+
+
+
+# Taille, Poids, sexe et performance 
+
+
+## Différence de vitesse homme et femme sur le 50m et 800m 
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+
+BESTout = BESTmcmc(natation_50_H$Vitesse, natation_50_F$Vitesse)
+plot(BESTout)
+
+BESTout = BESTmcmc(natation_800_H$Vitesse, natation_800_F$Vitesse)
+
+plot(BESTout)
+```
+
+##### Sur le 50m, on a 95 % de chance que la différence de vitesse entre les hommes et les femmes soit comprise 0.815 et 0.935. En moyenne, les hommes sont plus rapide de 0.87 km/heure sur le 50m.
+##### Sur le 800m, on a 95 % de chance que la différence de vitesse entre les hommes et les femmes soit comprise 0.34 et 0.439. En moyenne, les hommes sont plus rapide de 0.39 km/heure sur le 800.
+##### Ainsi, on remarque que sur les longues épreuves l'écart de vitesse homme/femme est moins important par rapport aux épreuves courtes qui nécessitent d'avantage d'explosivité.
+
+##### Comment expliquer les différences obtenues ? 
+
+##### Les femmes sont en général plus maigres et plus petites que les hommes. Mais ce n'est pas tout.
+##### D'après les études de Dufour A-B, ces différences pourraient être expliquées par des différences de composition corporelle.
+
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+
+a=mean(natation_50_F$Taille)
+b=mean(natation_800_F$Taille)
+c=mean(natation_50_H$Taille)
+d=mean(natation_800_H$Taille)
+r= as.data.frame(cbind(a,b,c,d))
+
+a=mean(natation_50_F$Poids)
+b=mean(natation_800_F$Poids)
+c=mean(natation_50_H$Poids)
+d=mean(natation_800_H$Poids)
+r2= as.data.frame(cbind(a,b,c,d))
+r3=rbind(r,r2)
+rownames(r3) = c("Taille","Poids")
+colnames(r3) = c("Femme 50m","Femme 800m","Homme 50m"," Homme 800m")
+round(r3,2)
+```
+
+#####  D'un point de vue descriptif, on observe que sur les épreuves longues  sont caractérisées par des sportifs plus maigres et de taille plus petites. Les sprinters sont plus lourds et plus grands.
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+ggplot(natation_50, aes(x = Vitesse, y = Poids)) + geom_point() + geom_smooth(method = "lm")+
+ facet_grid(vars(Sexe), vars()) + hrbrthemes::theme_ipsum_tw()+ labs(title="Poids et vitesse chez les sprinteurs")
+```
+
+##### La pente de la courbe est assez inclinée, chez les hommes, un poids plus élevé permet confére une meilleur vitesse dans un certain intervalle.
+
+ 
+## Performance en fonction du poids et de la taille chez les hommes
+```{r,warning=FALSE,message=FALSE,echo=FALSE,results=FALSE}
+# modele 50 m  Homme
+model <- stan_glm(Vitesse ~ Poids+Taille, data = natation_50_H)
+p=insight::get_parameters(model)
+
+```
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+
+ggplot(p, aes(x = Poids)) +geom_density(fill = "orange",alpha=.2)+labs(title = "Homme 50m Poids")
+ggplot(p, aes(x = Taille)) +geom_density(fill = "orange",alpha=.2)+labs(title = "Homme 50m Taille")
+describe_posterior(model, test = c("p_direction", "rope", "bayesfactor"))
+```
+
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE,results=FALSE}
+# modele 800 m  Homme
+model <- stan_glm(Vitesse ~ Poids+Taille, data = natation_800_H)
+p=insight::get_parameters(model)
+```
+
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+ggplot(p, aes(x = Poids)) +geom_density(fill = "yellow",alpha=.2)+labs(title = "Homme 800m Poids")
+ggplot(p, aes(x = Taille)) +geom_density(fill = "yellow",alpha=.2)+labs(title = "Homme 800m Taille")
+describe_posterior(model, test = c("p_direction", "rope", "bayesfactor"))
+```
+
+##### Chez les hommes,pour 1 kg de plus au 50m , un athlète a environ 89 % de chance de gagner entre -0.002 et 0.009 km/heure.  
+##### Pour le 800m, l'intervalle se trouve entre -0.008 et 0.0 km/heure.
+##### Ces valeurs semblent infimes, cependant sur une course de 50m cela joue beaucoup.
+#####  Pour le 800m, la prise d'un kg et beaucoup moins intéressante en effet, dans plus de la moitié des cas la prise d'un kg va faire stagner ou régresser la vitesse de l'athlète. 
+
+##### Concernant la taille, un athlète du 50 mètre a envrion 89 % de chance de gagner entre -0.010 et 0.006 km/heure par cm supplémentaire. Pour le 800 mètre, l'intervalle est compris entre 0,001 et 0.012. Ainsi, pour le 800 m, une grande taille apparaît comme un plus alors que sur le 50 mètre, cela apparaît d'avantage comme un défaut.
+
+##### Ainsi, chez les hommes quelque soit la distance, le poids et la taille sont significativement à la vitesse et donc à la performance.
+
+
+## Performance en fonction du poids et de la taille chez les femmes
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE,results=FALSE}
+
+# modele 50 m Femme
+model <- stan_glm(Vitesse ~ Taille + Poids, data = natation_50_F)
+p=insight::get_parameters(model)
+```
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+ggplot(p, aes(x = Poids)) +geom_density(fill = "red",alpha=.2)+labs(title = "Femme 50m Poids")
+ggplot(p, aes(x = Taille)) +geom_density(fill = "red",alpha=.2)+labs(title = "Femme 50m Taille")
+describe_posterior(model, test = c("p_direction", "rope", "bayesfactor"))
+```
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE,results=FALSE}
+
+# modele 800 m  Femme
+model <- stan_glm(Vitesse ~ Taille + Poids, data = natation_800_F)
+p=insight::get_parameters(model)
+```
+
+
+```{r,warning=FALSE,message=FALSE,echo=FALSE}
+ggplot(p, aes(x = Poids)) +geom_density(fill = "blue",alpha=.2)+labs(title = "Femme 800m")
+ggplot(p, aes(x = Taille)) +geom_density(fill = "blue",alpha=.2)+labs(title = "Femme 800m  Taille")
+describe_posterior(model, test = c("p_direction", "rope", "bayesfactor"))
+```
+
+
+##### Chez les femmes ,pour 1 kg de plus au 50m, un athlète a environ 89 % de chance de gagner entre -0.012 et 0.002 km/heure. Pour le 800m, l'intervalle se trouve entre -0.018 et -0.003 km/heure.  Ainsi, le poids chez les femmes apparaît comme peu avantageux.De plus, on obtient une médiane de -0.006 pour le 50m et -0.011  pour le poids. 
+
+##### Concernant la taille, une athlète du 50 mètre a envrion 89 % de chance de gagner entre 0.002 et 0.016 km/heure par cm supplémentaire. Pour le 800 mètre, l'intervalle est compris entre 0,003 et 0.016. De plus, on obtient une médiane de 0.008 pour le 50m et de 0.010 pour le 800m. 
+
+##### Ainsi,chez les nageuses d'élites, la taille est un point fort quelque soit l'épreuve tandis que le poids est toujours pénalisant quelque soit l'épreuve. Mais pour les longues épreuves, le poid est encore plus pénalisant.
+
+
+
+
+
+
+
+# Conclusion 
+
+##### Les résultats des différentes analyses ont montré des relations entre la morphologie et la performance pour les deux sexes.
+
+##### L'IMC apparaît être une variable très peu informative concernant la performance des nageurs.
+
+##### Quelque soit l'épreuve les hommes sont toujours plus rapides que les femmes.
+
+##### Concernant le poids, pour les sprinteurs, une masse plus importante serait bénéfique pour obtenir de meilleurs performances alors que les nageurs de plus longues distances doivent être plus légers.
+
+##### Concernant la taille, les nageurs les plus grands ont une probabilité plus élevée d'être plus rapides.
+
+##### L'étude comporte quelques biais, comme les types de nages, les biais de notations, les biais liés aux conditions de compétitions (taille de la piscine) ou l'équipement et en particulier les différences de composition des maillots de bains qui peuvent grandement influencer les performances.
+
