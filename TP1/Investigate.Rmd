@@ -1,0 +1,172 @@
+---
+title: "Analyse en Composantes Principales"
+author: "Jeu de données wakecounty"
+output:
+  html_document: default
+---
+Ce jeu de données contient 100 individus et 8 variables.
+
+- - -
+
+```{r, echo = FALSE}
+library(FactoMineR)
+load('C:/Users/samue/OneDrive/Bureau/Ecole/2A/methode_stat/Workspace.RData')
+```
+### 1. Observation d'individus extrêmes
+L'analyse des graphes détecte un individu singulier qui influence très fortement les résultats observés. On soulignera dans un premier temps le caractère extrême de cet individu avant de le retirer pour procéder à la suite de l'analyse.
+En observant le graphe, on peut noter qu'un individu est très particulier et contribue énormément à la construction du plan. Sa contribution à la construction du plan est de **36.5%**.
+
+```{r, echo = FALSE, fig.align = 'center', fig.height = 3.5, fig.width = 5.5}
+drawn <-
+integer(0)
+par(mar = c(4.1, 4.1, 1.1, 2.1))
+plot.PCA(memory, choix = 'ind', invisible = c('var', 'quali'), select = drawn, title = '', cex = cex)
+```
+
+**Figure 1.1 - Graphe des individus (ACP) avant correction.** 
+*Mise en évidence d'un individu singulier.* 
+
+```{r, echo = FALSE, fig.align = 'center', fig.height = 3.5, fig.width = 5.5}
+drawn <-
+integer(0)
+par(mar = c(4.1, 4.1, 1.1, 2.1))
+plot.PCA(res, choix = 'ind', invisible = c('var', 'quali'), select = drawn, title = '', cex = cex)
+```
+
+**Figure 1.2 - Graphe des individus (ACP) après correction.** 
+*Mise en évidence d'un individu singulier.* 
+
+```{r, echo = FALSE, fig.align = 'center', fig.height = 3.5, fig.width = 5.5}
+drawn <-
+c("Building", "SqFt", "Total", "NoBaths", "Story", "YearBuilt"
+)
+par(mar = c(4.1, 4.1, 1.1, 2.1))
+plot.PCA(memory, choix = 'var', select = drawn, title = '', cex = cex)
+```
+
+**Figure 1.3 - Graphe des variables (ACP) avant correction**
+*Les variables libellées sont celles les mieux représentées sur le plan.*
+
+```{r, echo = FALSE, fig.align = 'center', fig.height = 3.5, fig.width = 5.5}
+drawn <-
+c("Building", "SqFt", "Total", "NoBaths", "Story", "YearBuilt"
+)
+par(mar = c(4.1, 4.1, 1.1, 2.1))
+plot.PCA(res, choix = 'var', select = drawn, title = '', cex = cex)
+```
+
+**Figure 1.3 - Graphe des variables (ACP) après correction**
+
+- - -
+
+**L'individu 5** :
+
+- prend de très fortes valeurs pour le(s) variable(s) :
+*Acres* et *Total* (de la plus extrême à la moins extrême).
+
+- prend de très faibles valeurs pour les variables :
+Après avoir éliminé cet individu singulier, on peut explorer le reste des individus par une seconde analyse.
+
+- - -
+
+### 2. Distribution de l'inertie
+L'inertie des axes factoriels indique d'une part si les variables sont structurées et suggère d'autre part le nombre judicieux de composantes principales à étudier.
+
+Les 2 premiers axes de l' analyse expriment **64.43%** de l'inertie totale du jeu de données ; cela signifie que 64.43% de la variabilité totale du nuage des individus (ou des variables) est représentée dans ce plan.
+C'est un pourcentage assez important, et le premier plan représente donc convenablement la variabilité contenue dans une grande part du jeu de données actif.
+Cette valeur est nettement supérieure à la valeur référence de **36.35%**, la variabilité expliquée par ce plan est donc hautement significative
+(cette intertie de référence est le quantile 0.95-quantile de la distribution des pourcentages d'inertie obtenue en simulant 3192 jeux de données aléatoires de dimensions comparables sur la base d'une distribution normale).
+
+Du fait de ces observations, il serait tout de même probablement préférable de considérer également dans l'analyse les dimensions supérieures ou égales à la troisième.
+
+```{r, echo = FALSE, fig.align = 'center', fig.height = 3.5, fig.width = 5.5}
+par(mar = c(2.6, 4.1, 1.1, 2.1))
+ggplot2::ggplot(cbind.data.frame(x=1:nrow(res$eig),y=res$eig[,2])) + ggplot2::aes(x=x, y=y)+ ggplot2::geom_col(fill="blue") + ggplot2::xlab("Dimension") + ggplot2::ylab("Pourcentage d'inertie") + ggplot2::ggtitle("Décomposition de l'inertie totale") + ggplot2::theme_light() + ggplot2::theme(plot.title = ggplot2::element_text(hjust =0.5)) + ggplot2::scale_x_continuous(breaks=1:nrow(res$eig))
+```
+
+**Figure 2 - Décomposition de l'inertie totale**
+
+Une estimation du nombre pertinent d'axes à interpréter suggère de restreindre l'analyse à la description des 1 premiers axes.
+Ces composantes révèlent un taux d'inertie supérieur à celle du quantile 0.95-quantile de distributions aléatoires (49.7% contre 19.9%).
+Cette observation suggère que seul cet axe est porteur d'une véritable information.
+En conséquence, la description de l'analyse sera restreinte à ces seuls axes.
+
+- - -
+
+### 3. Description de la dimension 1
+
+```{r, echo = FALSE, fig.align = 'center', fig.height = 3.5, fig.width = 5.5}
+drawn <-
+c("86", "22", "10", "78", "34", "66", "27", "84", "40", "13", 
+"52", "87", "83", "33", "29", "48")
+par(mar = c(4.1, 4.1, 1.1, 2.1))
+plot.PCA(res, select = drawn, axes = c(1,2), choix = 'ind', invisible = 'quali', title = '', cex = cex)
+```
+
+**Figure 3.1 - Graphe des individus (ACP)**
+*Les individus libellés sont ceux ayant la plus grande contribution à la construction du plan.*
+
+```{r, echo = FALSE, fig.align = 'center', fig.height = 3.5, fig.width = 5.5}
+drawn <-
+c("Building", "SqFt", "Total", "NoBaths", "Story", "YearBuilt"
+)
+par(mar = c(4.1, 4.1, 1.1, 2.1))
+plot.PCA(res, select = drawn, axes = 1:2, choix = 'var', title = '', cex = cex)
+```
+
+**Figure 3.2 - Graphe des variables (ACP)**
+*Les variables libellées sont celles les mieux représentées sur le plan.*
+
+* * *
+
+La **dimension 1** oppose des individus tels que *29*, *10*, *22*, *86* et *83* (à droite du graphe, caractérisés par une coordonnée fortement positive sur l'axe)
+à des individus comme *48*, *34*, *33* et *66* (à gauche du graphe, caractérisés par une coordonnée fortement négative sur l'axe).
+
+Le groupe auquel les individus *29*, *10*, *22*, *86* et *83* appartiennent (caractérisés par une coordonnée positive sur l'axe) partage :
+
+- de fortes valeurs pour les variables *SqFt*, *Building*, *Total*, *Fireplaces*, *Acres*, *NoBaths*, *Story* et *YearBuilt* (de la plus extrême à la moins extrême).
+
+Le groupe auquel les individus *48*, *34*, *33* et *66* appartiennent (caractérisés par une coordonnées négative sur l'axe) partage :
+
+- de faibles valeurs pour les variables *Story*, *NoBaths*, *YearBuilt*, *Fireplaces*, *SqFt*, *Building* et *Total* (de la plus extrême à la moins extrême).
+
+
+- - -
+
+### 4. Classification
+
+```{r, echo = FALSE}
+res.hcpc = HCPC(res, nb.clust = -1, graph = FALSE)
+```
+
+```{r, echo = FALSE, fig.align = 'center', fig.height = 3.5, fig.width = 5.5}
+drawn <-
+c("86", "22", "10", "78", "34", "66", "27", "84", "40", "13", 
+"52", "87", "83", "33", "29", "48")
+par(mar = c(4.1, 4.1, 1.1, 2.1))
+plot.HCPC(res.hcpc, choice = 'map', draw.tree = FALSE, select = drawn, title = '')
+```
+
+**Figure 4 - Classification Ascendante Hiérachique des individus.**
+*La classification réalisée sur les individus fait apparaître 3 classes.*
+
+
+La **classe 1** est composée d'individus tels que *27*, *34*, *48* et *78*. Ce groupe est caractérisé par :
+
+- de faibles valeurs pour les variables *Fireplaces*, *NoBaths*, *SqFt*, *Building*, *Total* et *YearBuilt* (de la plus extrême à la moins extrême).
+
+La **classe 2** est composée d'individus tels que *13*, *33*, *40*, *52*, *66*, *84* et *87*. Ce groupe est caractérisé par :
+
+- de fortes valeurs pour les variables *Fireplaces* et *NoBaths* (de la plus extrême à la moins extrême).
+- de faibles valeurs pour la variable *Story*.
+
+La **classe 3** est composée d'individus tels que *10*, *22*, *29*, *83* et *86*. Ce groupe est caractérisé par :
+
+- de fortes valeurs pour les variables *Building*, *SqFt*, *Total*, *Story*, *YearBuilt*, *NoBaths*, *Acres* et *Fireplaces* (de la plus extrême à la moins extrême).
+
+- - -
+
+## Annexes
+
+
+
