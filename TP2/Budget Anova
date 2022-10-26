@@ -1,0 +1,238 @@
+---
+title: "TP LEROY"
+author: "Tommy Tankhapanya Chloé Landais Guibert Samuel"
+date: "Pour le 19/02/2021"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+   
+    theme: yeti 
+---
+
+# TP - ANOVA 
+
+#### Les données proviennent d'un organisme qui étudie le budget familial hebdomadaire allouées aux repas. L'étude s'intéresse à plusieurs facteurs : la taille de la famille et la catégorie socioprofessionelle. L'enquête dont sont issues nos donnes permet de classes les familles en 15 catégories obtenues par croisement de la CSP et de la taille de la famille.
+
+
+#### Les modalités de la variable nombre d'enfants sont :
+
+- Familles sans enfant
+- Familles ayant 1 ou 2 enfants
+- Familles ayant 3 ou 4 enfants
+- Familles ayant 5 ou 6 enfants
+- Familles ayant plus de 6 enfants
+
+#### Nous avons pour la CSP les modalités suivantes :
+
+- CSP1 
+- CSP2 
+- CSP3
+
+#### Le lien entre ces variables est assez compliqués à expliquer puisqu'un grand nombre d'enfant signifie plus de bouches à nourir et donc une augmentation du budget hebdomadaire. Cependant, une grande famille poura bénéficier d'économie d'échelle en achetant en gros. De plus, ce sont les familles les plus pauvres et les plus riches qui ont davantage d'enfant en France.
+
+#### Dans notre étude, nous allons essayer mettre en exergue le lien entre le budget hebdomaire des ménages et le nombre d'enfants ainsi que la catégorie socio-professionnelle.
+
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+#chargement des packages
+library(tidyverse)
+library(scales)
+library(ggplot2)
+library(corrplot)
+library(dplyr)
+library(kableExtra)
+library(magrittr)
+library(gridExtra)
+library(leaps)
+library(modelr)
+library(car)
+df= read.table("C:/Users/samue/OneDrive/Bureau/Ecole/2A/methode_stat/TP2/budget.txt",header = T)
+#df =read.table("DonneesBudget.txt",header = T)
+
+# recodage des données 
+df$Famille = recode_factor(df$Famille,"A"=" Sans enfant","B"=" 1 ou 2 enfants","C"="  3 ou 4 enfants","D"="5 ou 6 enfants","E"="Plus de 6 enfants")
+df$Budget = df$Budget*10
+```
+
+
+
+```{r, echo = FALSE, warning=FALSE,message=FALSE}
+#table(df$CSP)
+#table(df$Famille)
+df %>% group_by(Famille,CSP) %>% summarise(n=n())
+```
+
+#### Grâce aux tableaux ci-dessus, on constate une répartition parfaitement équitable. On a 30 familles dans chaque modalités de la variable nombre d'enfants et dans ces groupes, 10 familles de chaque CSP. 
+
+
+
+### Budget des familles en fonction du nombre d'enfants
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+ggplot(df,aes(y=Budget,x='',color=Famille))+geom_boxplot()+labs(x="" ,title="Budget des familles en fonction du nombre d'enfants",y="Budget hebdomadaire")
+
+
+df %>% group_by(Famille) %>% summarise(Moyenne = mean(Budget),Mediane = median(Budget),"Ecart-type"= round(sqrt(var(Budget))),maximun =max(Budget),minimun=min(Budget))
+
+#quantile(df$Budget,probs = 0.25)
+```
+
+
+#### De manière générale, plus le nombre d'endant augmente plus le revenu de la famille diminue. En effet, 50% des familles sans enfant ont un budget de 500 €  ou plus par semaine contre 315 € pour les familles de plus de 6 enfants.
+
+
+### Budget des familles en fonction de la CSP
+
+
+
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+
+ggplot(df,aes(y=Budget,x='',color=CSP))+geom_boxplot()+labs(x=" " ,title="Budget des familles en fonction de la CSP",y="Budget hebdomadaire de la famille")
+
+
+df %>% group_by(CSP) %>% summarise(Moyenne = mean(Budget),Mediane = median(Budget),"Ecart-type"= round(sqrt(var(Budget))),maximun =max(Budget),minimun=min(Budget))
+```
+
+
+
+
+#### On constate qu'il existe très peu de différence de budget hebdomadaire entre les différentes CSP de notre jeu de données. 
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+
+
+
+
+df2=df %>% group_by(Famille,CSP) %>% summarise(Moyenne = mean(Budget),Mediane = median(Budget),"Ecart-type"= round(sqrt(var(Budget))))
+
+
+ggplot(df,aes(y=Budget,x=Famille,color=CSP))+geom_boxplot()+labs(title="Budget en fonction de la CSP et du nombre d'enfants")
+
+```
+
+#### De manière générale, la CSP3 est davantage homogène que les autres CSP quelque soit le nombre d'enfant. En revanche, la CSP 1 et 2 est très hétérogène quelque soit le nombre d'enfant. La médiane dominante pour chaque type de famille n'est pas toujours la même.
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, eval=FALSE }
+summary(df)
+head
+# Step 1
+df %>% 
+#Step 2
+group_by(CSP) %>% 
+#Step 3
+summarise(moyenne = median(Budget)) %>% 
+#Step 4
+ggplot(aes(x = CSP, y = moyenne, fill = CSP)) + geom_bar(stat = "identity") + theme_classic()+labs(y= "Moyenne du budget")
+```
+
+
+
+### Tableau récapitulatif
+
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+df %>% group_by(Famille,CSP) %>% summarise(Moyenne = mean(Budget),Mediane = median(Budget),"Ecart-type"= round(sqrt(var(Budget))))
+```
+
+
+
+
+### Modèle complet
+
+
+#### Après avoir étudié nos données de façon descriptives, nous passons à une étude plus approfondie.
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+
+reg = lm(Budget~.,df)
+summary(reg)
+
+#Intercept --> famille sans enfant et csp1 
+```
+
+
+####  On observe un R² ajusté de 0.45 ce qui est plutôt modéré, cela signifie que nos variables expliquent 44.97% % de la variance du budget hebdomadaire des ménages . De nombreuses variables ont des coefficients qui ne sont pas significativement différent de 0. Le budget varie selon le nombre d'enfants par famille. Plus les familles sont nombreuses, plus le budget est faible. La catégorie socio-professionnelle 1 semble avoir le plus d'impact sur le budget. Les coefficients des CSP 2 et 3 sont négatifs ; on suppose alors que la CSP 1 est la catégorie où le budget est le plus important.
+
+
+
+#### On realise un modèle selon plusieurs critères (BIC,Cp,R²). 
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+
+models <- regsubsets(Budget~., df, nbest = 1, nvmax = 8)
+
+ plot(models , scale ="adjr2")
+ #plot(models , scale ="Cp")
+ #plot(models , scale ="bic")
+```
+
+
+
+#### On souhaite à présent réaliser une anova. Pour cela, nous devons vérifier les trois conditions suivnates :
+
+- 1. Les résidus sont indépendants.
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+plot(reg, 1)
+
+durbinWatsonTest(reg)
+
+```
+#### Le test de Watson nous renvoie une p-valeur inferieure à 5%. Sur le graphique et grace au test, on observe une absence de correlation entre les residus et le facteur étudié. Les résidus sont globalement centrés sur 0.
+
+- 2. Les resiodus de la variable quantitative étudiée suit une loi normale de moyenne 0 dans les p populations comparées.
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+
+shapiro.test(reg$residuals)
+plot(reg, 2)
+
+```
+
+#### D'après le test de de Shapiro et le graphique ci-dessus, les résidus de la  variable quantitative (Budget) étudié suivent globalement une loi normale. On remarque une variabilité aux extremités mais cela est négligable.
+
+- 3. Les p populations comparées ont même variance : Homogénéité des variances ou homoscédasticité.
+
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+
+bartlett.test(df$Budget~df$Famille)
+plot(reg,3)
+```
+
+#### D'après le graphique et le test de Berthelet, on ne rejette pas l'égalité des variances. En effet, la p-valeur du test est supérieure à 5% et la dispertion des résidus est globalement identique pour chaque modalités.
+
+
+#### Les conditions sont réunis.
+
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+
+
+analyse = anova(reg)
+analyse
+#summary(analyse)
+
+
+```
+
+#### D'après les résultats obtenus de l'ANOVA, on demontre une différence du budget hebdomadaire en fonction de la taille de la famille. En effet, nous relevons une p-valeur très proche de 0. Par ailleurs, la p-valeur de la catégorie socio-professionnelle est relativement élevée ; on peut alors admettre que le budget ne diffère pas selon la CSP.
+
+
+
+### Conclusion avancée:
+
+
+#### D'après l'anova et la régréssion linéaire, plus le nombre d'enfants augmente, plus le budget hebdomadaire des ménages diminue. Les limites de cette étude sont le fait qu'il n'y est pas d'avantage de CSP et qu'elles ne sont pas nommées clairement, le fait qu'il n'y pas la variable âge de l'enfant pose des biais.
+
+ 
+### Conclusion générale:
+
+
+#### Plus le nombre d'enfants augmente, plus le budget hebdomadaire des ménages diminue. La CSP n'a que peu d'importance sur le budget hebdomadaire.  D'après nous, la CSP1 représente les professions intermédiaires ou les professions intelectuels supérieurs et assimilées. La CSP2 représenterait les ouvriers et la CSP3 les employés. En effet, la CSP2 à une budget très légerement supérieur à la CSP2. Or, les ouvriers ont un salaire moyen très légérement supérieur aux employés.
+
+
+
