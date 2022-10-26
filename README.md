@@ -1,4 +1,4 @@
-# TP-en-R-2022
+# TP-en-R-2021 (DUT 2ème année) 
 Quelques TP en R de DUT STID fait en groupe ou individuellement avec un rendu Rmarkdown 
 
 TP1: Etude du prix d'une maison en fonction de plusieurs critères : 
