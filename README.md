@@ -16,3 +16,5 @@ TP3: Etude de la perfomance des sportifs avec une approche descriptive et Bayes
 TP4: Modélisation de la performance des sportifs
 ![image](https://user-images.githubusercontent.com/77342727/198058147-73c5d744-0522-49c8-a220-0e62fa67ebe4.png)
 
+TP6: Etude de la relation entre performance et l'age
+![image](https://user-images.githubusercontent.com/77342727/198304872-990a6483-2fbf-4f6e-ace4-712b86715eb4.png)
