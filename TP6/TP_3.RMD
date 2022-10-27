@@ -1,0 +1,528 @@
+---
+title: "TP Noté Domaine d'application"
+author: "Tommy Tankhapanya / Chloé Landais/ Samuel Guibert" 
+date: "18/03/2021"
+output: 
+    prettydoc::html_pretty:
+      theme: yeti
+      toc: yes
+    toc_float: yes
+      
+---
+
+```{r setup, include=FALSE, fig.align='center',message=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message = FALSE, warning = FALSE)
+```
+
+
+
+```{r}
+#Chargement des packages
+library(tidyverse)
+library(gridExtra) 
+library(ggpubr)
+library(reshape2)
+library(esquisse)
+library(plotly)
+library(mice)
+library(car)
+library(questionr)
+library(BEST)
+library(rstanarm) # bays
+library(bayestestR) # bays
+library(insight) # bays
+# Importation des donnees
+data <- read_csv("echantillon_petit.csv")
+data_clean = read_csv("data_sport_clean")
+```
+
+#### Notre jeu de données est constitué de 100 000 observations et de 39 variables. Il traite du "powerlefting". C'est une discipline non olympique qui consiste à lever une charge la plus lourde possible sur une répétition de 3 mouvements.
+
+- Squat: Ce mouvement consiste à descendre en  en positiopn accroupie et à se relever, une barre reposant sur l'arrière des épaules.
+
+- Développé couché: L'athlète est en postion allongée. Il tient la barre, bras tendus au-dessus de la poitrine, l'amène au contact de la poitrine et la relève.
+
+- Souvelé de terre: L'athlète saisit la barre au sol et la soulève jusqu'à ce que qu'il soit complètement debout, la barre restant au niveau des hanches.
+
+#### La performance est quantifiée par la somme de des meilleurs résultats sur chacun des trois mouvements le jour de la compétition.
+
+# 1. Mise en forme et nettoyage des données
+
+```{r}
+data <- data%>%filter(Age > 5)
+ggplot(data, aes(Age, TotalKg)) + geom_point(col = "red", size = 1) +
+  labs(title = "Distribution du poids total soulevé selon les âges", x = "Âge", y = "Poids soulevé")
+
+```
+
+
+```{r}
+data <- data %>% filter(Age > 5)
+ggplot(data, aes(Age, TotalKg)) + geom_point(col = "tan2", size = 1) +
+  labs(title = "Distribution du poids total soulevé selon les âges", x = "Âge", y = "Poids total")
+datasansJoe <- data[-which(data$Name=="Joe Reeves" & data$Age ==9.5),]
+```
+
+#### Pour pouvoir visualiser nos données, nous avons d'abord réalisé un nuage de points entre l'âge et le poids total soulevé de chaque haltérophile. Nous pouvons voir qu'il y a certaines données abérantes comme l'observation située à gauche, qui signifierait qu'une personne de 9.5 ans aurait soulevé environ 950 kg. Nous venons de vérifier le nom de cet individu, il se trouve qu'il s'agit de JOE REEVES, cependant nous avons décidé de le supprimer car nous n'avons pas réussi à trouver son age.
+#### Nous avons aussi regardé si les performances des meilleurs atlthétes étaient possibles physiquement en nous documentant et nous avons trouvé aucune autre valeurs abberante.
+
+```{r}
+colSums(is.na(datasansJoe))  
+
+# imputation mediane pour les variables utilise
+#datasansJoe$BodyweightKg=ifelse(is.na(datasansJoe$BodyweightKg),median(datasansJoe$BodyweightKg),datasansJoe$BodyweightKg)
+
+# imputation avec mice()
+#input = mice(datasansJoe,m=5)
+#input$imp$BodyweightKg
+#data_clean = complete(input,5)
+data_clean = read_csv("data_sport_clean") # pour éviter que les valeurs changent à chaque fois
+colSums(is.na(data_clean))
+
+```
+
+#### Nous avons aussi regardé s'il y avait beaucoup de valeurs manquantes(NA) dans notre jeu de données. Nous avons hésité entre  imputer les valeurs manquantes pour les variables qui nous intéressent par la médiane car celle-ci possède de bonnes propriétées. En effet, la solution la plus simple aurait été de supprimer les données mais avec cette technique on perd de l'information. Au final, nous avons utilisé la fonction mice() du package du même nom qui combine différente méthode d'amputations. 
+
+```{r}
+
+data_clean_dead = filter(data_clean,Best3DeadliftKg>0 ) 
+data_clean_Bench = filter(data_clean,Best3BenchKg>0 ) 
+data_clean_Squat = filter(data_clean,Best3SquatKg>0 ) 
+```
+
+####  Nous avons supprimé les lignes où les athlètes ont ratés toutes leurs séries. 
+
+
+# 2. Description des données (âge,sexe,poids)
+
+## Distribution du sexe
+
+```{r}
+
+dim(data_clean)
+
+round(prop.table(table(data$Sex)),3)
+label = c("Femme","Homme")
+value = c(69683,30307 )
+values = c(0.303, 0.697 )
+
+dat = as.data.frame(rbind(label,values))
+colnames(dat)=   c("Homme","Femme")    
+gg3 = plot_ly(dat,labels=label,values=~values  ,type='pie')
+gg3 %>% layout(title = "Distribution du sexe des sportifs")
+```
+
+#### Au sein de notre jeu de données final, on a 30,3% de femmes et 69.7% d'hommes.
+
+## Distribution de l'âge et le poids
+
+```{r}
+
+gg1 = ggplot(data_clean, aes(x=Age)) + geom_histogram(aes(y=..count../sum(..count..)), colour="black", fill="#8AA9E2")+ labs(title="Distribution de l'âge des athlètes ",y="Densité ",x="Âge")+theme_bw()
+  
+gg2 = ggplot(data_clean, aes(x=BodyweightKg)) + geom_histogram(aes(y=..count../sum(..count..)), colour="black", fill="#8AA9E2")+labs(title = "Distribution du poids des athlètes", x = "Poids", y = "Densité")+theme_bw()
+
+grid.arrange(gg1, gg2,  ncol = 1, nrow = 3)
+#summary(data_clean$Age)
+summary(data_clean$BodyweightKg)
+```
+
+#### Concernant l'âge, la majorité des atlhètes ont entre 20 et 36 ans. La moyenne d'âge est d'environ 30 ans. 50 % des athlètes ont plus de 26 ans. L'athlète le plus jeune a 5,5 ans et le plus âgé a 93,5 ans.
+#### Concernant le poids, la majorité des atlhètes pèsent entre 66.6 et 97.5 kg. Le poids moyen  est d'environ 83.51 ans. 50 % des athlètes pèsent plus de 81.44 kg. L'athlète le plus léger pèse 21.77 kg et le plus lourd 240kg. 
+
+## Distribution de l'âge et le poids selon le sexe
+
+
+```{r,message=FALSE}
+
+ggplot(data_clean, aes(x=data_clean$Age)) + 
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666") + labs(title="Distribution de l'âge des athlètes selon le sexe ",y="Densité ",x="Age")+ theme_classic2()+
+ facet_wrap(vars(Sex))
+
+data_clean %>% group_by(Sex) %>% summarise("Age moyen" = round(mean(Age),2),"25%" = quantile(Age,probs = 0.25),"Mediane" = round(median(Age),2),"75%" = quantile(Age,probs = 0.75),min=min(Age),max=max(Age))
+
+```
+
+#### D'après les graphiques et le tableau, la distribution de l'âge est très similaire quelque soit le sexe.
+
+
+```{r,message=F}
+
+ggplot(data_clean, aes(x=data_clean$BodyweightKg)) + 
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666") + labs(title="Distribution du poids des athlètes selon le sexe ",y="Densité ",x="Age")+ theme_classic2()+
+ facet_wrap(vars(Sex))
+ 
+ data_clean %>% group_by(Sex) %>% summarise("Poids moyen" = round(mean(BodyweightKg),2),"25%" = quantile(BodyweightKg,probs = 0.25),"Mediane" = round(median(BodyweightKg),2),"75%" = quantile(BodyweightKg,probs = 0.75),min=min(BodyweightKg),max=max(BodyweightKg))
+```
+
+#### Sans surprise, les hommes sont majoritairement plus lourds que les femmes. En effet, on remarque que 75% des hommes pèsent plus de 74.4 kg alors que chez les femmes ce chiffre est de 56.1 kg. Le poids moyen des hommes est de 90.25 kg et 68.02 kg pour les femmes.
+
+```{r,message=F}
+#data_clean_F= filter(data_clean,Sex=='F')
+#data_clean_H= filter(data_clean,Sex=='M')
+#BESTout = BESTmcmc(data_clean_F$BodyweightKg, data_clean_H$BodyweightKg)
+#plot(BESTout)
+# trop long a charger
+```
+
+
+#### Distribution de la performance
+
+## Squat 
+
+```{r}
+ ggplot(data_clean_Squat, aes(Best3SquatKg)) + geom_histogram(aes(y=..count../sum(..count..)), colour="black", fill="#8AA9E2") +
+  labs(title = "Distribution de la meilleure performance au squat des athlètes selon le sexe", x = "Poids soulevé", y = "Densité") + facet_grid(Sex ~.)
+
+data_clean_Squat %>% group_by(Sex) %>% summarise("Squat moyen" = round(mean(Best3SquatKg),2),"25%" = quantile(Best3SquatKg,probs = 0.25),"Mediane" = round(median(Best3SquatKg),2),"75%" = quantile(Best3SquatKg,probs = 0.75),min=min(Best3SquatKg),max=max(Best3SquatKg))
+
+
+```
+
+#### On analyse les performances des hommes et des femmes sur le squat. Les femmes soulèvent en moyenne 119.49 kg. La masse la plus lourdes portées par les femmes est de 345 kg. La majorité font une performance comprise entre 95 et 140 kg. Tandis que chez les hommes, le poids moyen soulevé est de 209.86 kg. Le maximum est de  555 kg. 50% des hommes soulèvent une masse comprise entre 165 kg et 250 kg. On en conclut que généralement, les hommes soulèvent des poids plus élevés que les femmes.
+
+```{r}
+
+ggplot(data_clean_Bench, aes(Best3BenchKg)) + geom_histogram(aes(y=..count../sum(..count..)), colour="black", fill="#8AA9E2")+
+  labs(title = "Distribution de la meilleure performance au developpé couché des athlètes selon le sexe", x = "Poids soulevé", y = "Densité") + facet_grid(Sex ~.)
+
+data_clean_Bench %>% group_by(Sex) %>% summarise("Bench moyen" = round(mean(Best3BenchKg),2),"25%" = quantile(Best3BenchKg,probs = 0.25),"Mediane" = round(median(Best3BenchKg),2),"75%" = quantile(Best3BenchKg,probs = 0.75),min=min(Best3BenchKg),max=max(Best3BenchKg))
+```
+ 
+#### On passe à présent sur les performances des hommes et des femmes sur l'épreuve du développé couché. Les femmes soulèvent en moyenne sur cette épreuve 68 kg. Tandis que chez les hommes, le poids moyen soulevé est de 141.94 kg. La masse la plus lourdes portées par les hommes est de 442.5 kg et 240 kg chez les femmes. La majorité des femmes font une performance comprise entre 52.5 et 78.125 kg.  Pour les hommes,  leur performance sont principalement entre 112.5 et 167.5 kg.  On remarque à nouveau une assez grande différences entre les hommes et les femmes. Les femmes ont tendance à soulever des poids plus légers.
+ 
+ 
+```{r}
+
+ggplot(data_clean_dead, aes(Best3DeadliftKg)) +  geom_histogram(aes(y=..count../sum(..count..)), colour="black", fill="#8AA9E2") +labs(title = "Distribution de la meilleure performance au soulevé de terre des des athlètes selon le sexe", x = "Poids soulevé", y = "Densité") + facet_grid(Sex ~.)
+
+data_clean_dead %>% group_by(Sex) %>% summarise("Deadlift moyen" = round(mean(Best3DeadliftKg),2),"25%" = quantile(Best3DeadliftKg,probs = 0.25),"Mediane" = round(median(Best3DeadliftKg),2),"75%" = quantile(Best3DeadliftKg,probs = 0.75),min=min(Best3DeadliftKg),max=max(Best3DeadliftKg))
+```
+
+#### Pour finir, on étudie les différentes performance pour le soulevé de terre. Les femmes soulèvent en moyenne sur cette épreuve 136.95 kg. Tandis que chez les hommes, le poids moyen soulevé est de 228.56 kg. La masse la plus lourdes portées par les hommes est de 457.5 kg et 295 kg chez les femmes. La majorité des femmes font une performance comprise entre 115 et 155 kg.  Pour les hommes,  leur performance sont principalement entre 195 et 262.5 kg.  On observe que les athlètes soulèvent des poids plus lourds sur cette épreuve et que les femmes ont tendance à soulever des poids plus légers que les hommes.
+
+
+#### Quelque soit l'épreuve, la distribution de la performance est toujours en gausienne. Ainsi, la médiane et toujours proche de la moyenne. De manière générale, les hommes soulèvent davantage que les femmes.
+
+
+# 3.Analyse de la relation âge-performance
+
+## L'âge au pic de la performance au développé selon le sexe
+
+```{r}
+
+# modele Roger Moore
+MMC=function(age,vitesse,methode,nbpara,precision=10,borne=-Inf, initial=runif(nbpara)){
+ 
+  SQ_methode=function(p){ #Cette fonction permet de calculer la somme carre des residus            #theta sont les parametre qu
+    sum((vitesse-methode(age,p))^2) }
+ 
+  o=rep(10^6,precision) #o permet de stocker la fonction objectif qu'on voudra le plus bas
+  r=rep(0,precision) #r permet de sotcker le R?
+  para=rep(10^6,precision*(nbpara+1)) #pour stocker tout les parametres
+  for (i in seq(nbpara+1,precision*(nbpara+1),nbpara+1)){
+    sol=nlminb(start=initial + rnorm(nbpara,0,sqrt(abs(initial))),SQ_methode)
+    res= nlminb(start = sol$par,SQ_methode,lower=borne)
+    para[i:(i+nbpara-1)]=res$par #ici"
+    o[i/(nbpara+1)]=res$objective}
+  compt=which.min(o)
+  parametre=rep(0,nbpara)
+  parametre=para[((nbpara+1)*compt):(((nbpara+1)*compt)+(nbpara-1))] #on stock les meilleurs parametres
+  fit=methode(age,parametre) #regression
+  R2=sum((fit-mean(vitesse))^2)/sum((vitesse-mean(vitesse))^2) #R?
+  peak=age[methode(sort(age),parametre)==max(methode(sort(age),parametre))]
+  return(list(parametre=parametre,objectif=min(o),R2=R2,peak=peak))}
+f=function(x,p){
+  p[1]*(1-exp(p[2]*x))+p[3]*(1-exp(p[4]*x))
+}
+
+# creation de dataset filtre selon le sexe
+femme <- data_clean %>% filter(Sex == "F")
+max_femme_B <- aggregate(data = femme, Best3BenchKg ~ Age, FUN = "max")
+
+homme <- data_clean %>% filter(Sex == "M")
+max_homme_B <- aggregate(data = homme, Best3BenchKg ~ Age, FUN = "max")
+
+max_femme_B$Sexe = "F"
+max_homme_B$Sexe = "M"
+totmax_B <- rbind(max_femme_B, max_homme_B)
+
+```
+
+
+## L'âge au pic de la performance au développé couché pour les femmes 
+
+```{r}
+modelmoore=MMC(max_femme_B$Age,max_femme_B$Best3BenchKg,f,4,precision=5000)
+summary(modelmoore)
+# graphique Moore
+plot(max_femme_B$Age,max_femme_B$Best3BenchKg, pch=16, col="black",xlab="Age",ylab = "Poids soulevé")
+predictions<-f(max_femme_B$Age,modelmoore$parametre) # calcul des valeurs predites par le modele
+lines(max_femme_B$Age,predictions, col="red", lwd=2)
+max(predictions)
+
+modelmoore$peak 
+
+max_femme1_B = cbind(max_femme_B, predictions)
+
+tmp = arrange(max_femme1_B,desc(predictions)) %>% slice(1) #34 ans
+tmp
+
+```
+
+#### Sur la discipline du developpé couché, les femmes font leurs meilleurs performances entre 32 et 38 ans. L'âge théorique pour faire la meilleur performance selon la méthode de Moore est de 34 ans chez les femmes.
+
+
+## L'âge au pic de la performance au développé couché pour les hommes
+
+```{r}
+modelmoore=MMC(max_homme_B$Age,max_homme_B$Best3BenchKg,f,4,precision=5000)
+summary(modelmoore)
+# graphique Moore
+plot(max_homme_B$Age,max_homme_B$Best3BenchKg, pch=16, col="black",xlab="Age",ylab = "Poids soulevé")
+predictions<-f(max_homme_B$Age,modelmoore$parametre) # calcul des valeurs predites par le modele
+lines(max_homme_B$Age,predictions, col="red", lwd=2)
+max(predictions)
+modelmoore$peak
+
+max_homme1_B = cbind(max_homme_B, predictions)
+
+tmp = arrange(max_homme1_B,desc(predictions)) %>% slice(1) #34,5 ans
+tmp
+
+```
+
+#### Sur la discipline du developpé couché, les hommes font leurs meilleurs performances entre 30 et 37 ans. L'âge théorique pour faire la meilleur performance selon la méthode de Moore est de 34,5 ans chez les hommes
+
+## L'âge au pic sur la performance  totale des trois mouvements
+
+```{r}
+femme <- data_clean %>% filter(Sex == "F")
+max_femme <- aggregate(data = femme, TotalKg ~ Age, FUN = "max")
+
+homme <- data_clean %>% filter(Sex == "M")
+max_homme <- aggregate(data = homme, TotalKg ~ Age, FUN = "max")
+
+max_femme$Sexe = "F"
+max_homme$Sexe = "M"
+totmax <- rbind(max_femme, max_homme)
+
+
+#ggplot(totmax, aes(Age,TotalKg)) + geom_point(fill = "burlywood", col = "red") +labs(title = "Distribution de la meilleure performance au soulevé de terre des des athlètes selon le sexe", x = "Poids soulevé", y = "Nombre d'individus") + facet_grid(Sexe ~.)
+
+
+```
+
+## L'âge au pic sur la performance  totale des trois mouvements pour les femmes
+
+
+```{r}
+modelmoore=MMC(max_femme$Age,max_femme$TotalKg,f,4,precision=5000)
+summary(modelmoore)
+# graphique Moore
+plot(max_femme$Age,max_femme$TotalKg, pch=16, col="black",xlab="Age",ylab = "Poids soulevé")
+predictions<-f(max_femme$Age,modelmoore$parametre) # calcul des valeurs predites par le modele
+lines(max_femme$Age,predictions, col="red", lwd=2)
+max(predictions)
+
+modelmoore$peak
+
+max_femme1 = cbind(max_femme, predictions)
+
+tmp = arrange(max_femme1,desc(predictions)) %>% slice(1) #34 ans
+tmp
+```
+
+#### Sur la performance totale des trois disciplines, les femmes font leurs meilleurs performances environ entre 29 et 37. L'âge théorique pour faire la meilleur performance selon la méthode de Moore est de 34 ans ans chez les femmes.
+
+## L'âge au pic sur la performance  totale des trois mouvements pour les hommes
+
+```{r}
+modelmoore=MMC(max_homme$Age,max_homme$TotalKg,f,4,precision=5000)
+summary(modelmoore)
+# graphique Moore
+plot(max_homme$Age,max_homme$TotalKg, pch=16, col="black",xlab="Age",ylab = "Poids soulevé")
+predictions<-f(max_homme$Age,modelmoore$parametre) # calcul des valeurs predites par le modele
+lines(max_homme$Age,predictions, col="red", lwd=2)
+max(predictions)
+modelmoore$peak
+max_homme1 = cbind(max_homme, predictions)
+
+tmp = arrange(max_homme1,desc(predictions)) %>% slice(1) #35 ans
+tmp
+```
+
+#### Sur la performance totale des trois disciplines, les hommes font leurs meilleurs performances environ entre 30 et 37. L'âge théorique pour faire la meilleur performance selon la méthode de Moore est de 34 ans ans chez les hommes.
+
+#### Quelque soit le sexe ou l'épreuve, l'âge théorique pour faire la meilleur performance est d'environ 35 ans.
+
+# 4. Influence du poids sur la performance
+
+```{r}
+# Importation du jeu de données
+force=read.csv2('ffforce.csv',sep=',',dec = '.')
+#colSums(is.na(force))
+force$TotalKg = ifelse(is.na(force$TotalKg),median(force$TotalKg,na.rm = T),force$TotalKg)
+# cut 
+force = mutate(force,Poids = case_when(
+  BodyweightKg >40 & BodyweightKg<=60 ~ "(40-60]" ,
+  BodyweightKg >60 & BodyweightKg<=70 ~ "(60-70]" ,
+  BodyweightKg >70 & BodyweightKg<=80 ~ "(70-80]" ,
+   BodyweightKg >80 & BodyweightKg<=90 ~ "(80-90]" ,
+  BodyweightKg >90 & BodyweightKg<=100 ~ "(90-100]" ,
+  BodyweightKg >100  ~ "100+" 
+))
+table(force$Poids)
+min(force$BodyweightKg) # valeur mini 42 donc 40 pour la plus petite classe
+
+
+ggplot(force,aes(y=TotalKg,x='',color=Poids))+geom_boxplot()+labs(x="" ,title="Poids des athlètes en fonction du poids soulevé ",y="poids soulevé totale")
+
+force %>% group_by(Poids) %>% summarise("Moyenne" = round(mean(TotalKg),2),"25%" = quantile(TotalKg,probs = 0.25),"Mediane" = round(median(TotalKg),2),"75%" = quantile(TotalKg,probs = 0.75),min=min(TotalKg),max=max(TotalKg))
+```
+
+#### On se demande si la performance dépend du poids de l'athlète. Pour cette tâche, nous avons regroupé les poids en différentes catégories. Sur le graphique, on observe que plus la catégorie comporte des poids elevé plus la performance est bonne. Pour continuer, nous allons procéder à une ANOVA.
+
+
+```{r}
+reg = lm(TotalKg~Poids, data= force)
+summary(reg)
+
+```
+#### On observe un R² ajusté de 0.15 ce qui est plutôt faible, cela signifie que nos variables expliquent 15 % de la variance du Poids total. Toutes les coeffcients ont des p-values très petite ce qui démontre l'importance du poids dans la performance. Plus le poids est élevé,plus la performance est grande.
+#### L'intercept est le poids moyen soulevé au total par les athlètes ayant un poids compris entre 40 et 60, c'est à dire 237.48 kg. Pour obtenir, l'espèrance du poids moyen soulevé au total pour les athlètes ayant un poids compris entre 90 et 100. Il faut faire la somme 237.48 + 207.35 = 444.83. Ainsi, un athlète ayant un poids de plus de 100kg soulève en moyenne 232.38kg de plus que ceux ayant un poids compris entre 40 et 60kg en moyenne.
+#### Plus le poids augmente plus, le poids soulevé au total augmente.
+
+
+
+#### On souhaite à présent réaliser une anova. Pour cela, nous devons vérifier les trois conditions suivantes :
+
+- 1. Les résidus sont indépendants. 
+
+```{r}
+plot(reg, 1)
+
+durbinWatsonTest(reg)
+
+```
+
+
+#### Le test de Watson nous renvoie une autocorrélation assez forte. Sur le graphique et grace au test, on observe une  correlation entre les residus et le facteur étudié. Les résidus ne sont globalement pas centrés sur 0.
+
+
+
+- 2. Les residus de la variable quantitative étudiée suit une loi normale de moyenne 0 dans les p populations comparées.
+
+```{r}
+shapiro.test(reg$residuals)
+plot(reg, 2)
+```
+
+#### D'après le test de de Shapiro et le graphique ci-dessus, les résidus de la  variable quantitative (TotalWeigt) étudié suivent globalement une loi normale. On remarque une  grosse variabilité aux extremités.
+
+- 3. Les p populations comparées ont même variance : Homogénéité des variances ou homoscédasticité.
+
+
+```{r}
+leveneTest(force$TotalKg~force$Poids)
+bartlett.test(force$TotalKg~force$Poids)
+plot(reg,3)
+```
+
+#### D'après le graphique et le test de Berthelet ou de levene, on  rejette  l'égalité des variances. En effet, la p-valeur du test est très inférieur à 5% .
+
+
+```{r}
+analyse = anova(reg)
+analyse
+#summary(analyse)
+```
+
+#### D'après les différents tests, les hypothèses ne sont pas toutes réunies d'où un possible biais, cependant, l'anova reste une analyse solide. 
+#### L'ANOVA nous  permet de voir que la variable poids totale soulevé a des valeurs différentes en fonction des différents groupes de poids. Plus le poids augmente, plus le poids soulevé augmente. En effet, la p-valeur est très significative. L'anova nous confirme l'intuition du graphique concernant le poids soulevé selon les catégories de poids. 
+#### En conclusion, le poids à une influence sur la performance. Plus le poids augmente plus la performance augmente.
+
+
+# 5. Equipements
+
+#### Il est possible d'utiliser plusieurs équipement en powerlifting (variable:equipment):
+
+- raw:sans équipement
+- Simple-ply:combinaisonàunecouche
+- Multi-ply:combinaisonàplusieurscouches
+- Straps:Bande élastique pour fixer le poignet  à la barre
+- Wraps:Bande élastique autour des articulations
+
+## Création de la classe
+
+```{r}
+
+## Recodage de data$TotalKg en data$TotalKg_rec
+data_clean$PoidsTotal <- cut(data_clean$TotalKg,
+  include.lowest = T,
+  right = TRUE,
+  dig.lab = 4,
+  breaks = c(0 ,310,400, 500,580,680,1500)
+)
+
+table(data_clean$PoidsTotal) # nombre assez homogene
+
+
+#data_clean %>% select(Equipment) %>% distinct()
+```
+
+## Test du Chi²
+
+#### Afin d'estimer si l'équipement à une influence sur la performance, nous allons procéder à  un test du $\chi^2$ d'indépendance :
+
+#### Nous avons comme hypothèse nulle $(H_0)$ et alternative $(H_1)$ :
+
+$(H_0)$ : X et Y $\perp$  contre $(H_1)$ : X et Y liées
+
+
+#### Les conditions d'utilisation de ce test sont les suivantes :
+
+- Les effectifs théoriques sous $H_0$ sont suffisament grands
+
+- Le nombre d'observations doit être suffisament  grand
+
+- $\forall_i,_j \in${$1,\dots,k$}*{$1,\dots,l$}
+
+```{r}
+Tab_contingence <- table(data_clean$PoidsTotal, data_clean$Equipment)
+Tab_contingence
+```
+
+
+#### Ici, les conditions sont validées, nous allons donc procéder au test :
+
+```{r}
+chisq.test(Tab_contingence)
+```
+
+#### La $p-valeur$ est très proche de 0, d'après le test du $\chi^2$ les deux variables  sont liées. C'est à dire que la performance  est lié à l'utilisation d'un équipement.
+
+
+####  Fort de ce constat, nous allons observé quel e l'équipement qui favorise au maximun les performances. Pour cela, nous allons analyser les résidus du test :
+
+```{r}
+perf<- chisq.test(Tab_contingence)
+perf$residuals
+```
+
+
+#### D'après l'analyse des résidus du test,  aucun équipement ne favorise l'athlète quelque soit le poids. 
+#### En effet,  le *Multi-ply* et le *Single-ply* favorise uniquement les atlhètes soulevant plus de 680kg. 
+#### Le *Raw* favoriserait la performance des atlhètes portant des charges plus légères.
+
+#### Il est intéressant de noter qu'a à certain niveau, il est presque obligatoire de porter des équipements pour protéger  et préserver ses articulations. Comme par exemple, avec la ceinture abdominale au soulevé de terre.
+
+
+
+
+
+
+
+
